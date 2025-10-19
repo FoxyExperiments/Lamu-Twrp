@@ -116,8 +116,27 @@ jobs:
 
     - name: Repo Sync
       run: |
-        repo sync -j$(nproc --all) --force-sync
-      working-directory: workspace
+        echo "Workspace: ${{ steps.pwd.outputs.workspace-folder }}"
+        echo "Git version: $(git --version)"
+        df -h .
+
+        repo sync -j2 --force-sync || {
+          rm -rf platform/prebuilts/clang/host/linux-x86 || true
+
+          repo sync platform/prebuilts/clang/host/linux-x86 -j1 --force-sync || {
+            echo "Sync isolado do clang falhou. Debug:"
+            repo status platform/prebuilts/clang/host/linux-x86 || true
+            ls -al platform/prebuilts || true
+            repo forall -c 'echo "---- $REPO_PATH ----"; git rev-parse --abbrev-ref HEAD || true'
+            exit 1
+          }
+
+          repo sync -j4 --force-sync || {
+            echo "Sync geral falhou após recuperar clang."
+            exit 1
+          }
+        }
+      working-directory: ${{ steps.pwd.outputs.workspace-folder }}
 
     - name: Clone device tree
       run: |
